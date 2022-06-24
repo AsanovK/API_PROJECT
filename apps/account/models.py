@@ -50,12 +50,14 @@ class CustomUser(AbstractBaseUser):
         self.activation_code = code
         self.save()
     
-    def send_activation_sms(self):
-        from twilio.rest import Client
-        client = Client(settings.TWILIO_SID, settings.TWILIO_AUTH_TOKEN)
-        message = client.messages.create(
-            body=f'htttp://127.0.0.1:8000/account/activate/{self.activation_code}',
-            from_=settings.TWILIO_NUMBER,
-            to = self.phone
-        )
-        print(message.sid)
+    # def send_activation_sms(self):
+    #     from twilio.rest import Client
+    #     client = Client(settings.TWILIO_SID, settings.TWILIO_AUTH_TOKEN)
+    #     message = client.messages.create(
+    #         body=f'htttp://127.0.0.1:8000/account/activate/{self.activation_code}',
+    #         from_=settings.TWILIO_NUMBER,
+    #         to = self.phone
+    #     )
+    #     print(message.sid)
+
+

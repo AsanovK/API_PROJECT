@@ -1,6 +1,7 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from .utils import normalize_phone
+from .tasks import send_activation_sms
 User = get_user_model()
 
 # class RegistrationSerializer(serializers.Serializer):
@@ -40,9 +41,59 @@ class RegistrationSerializer(serializers.ModelSerializer):
         print(validated_data)
         user = User.objects.create_user(**validated_data)
         user.create_activation_code()
-        user.send_activation_sms()
+        send_activation_sms.delay(user.phone, user.activation_code)
         return user
 
 
 
-    
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(required=True)
+
+    def validate_email(self, email):
+        if not User.objects.filter(email=email).exists():
+            raise serializers.ValidationError("User not found!")
+        return email
+
+    def validate(self, data):
+        request = self.context.get('request')
+        email = data.get('email')
+        password = data.get('password')
+        if email and password:
+            user = authenticate(
+                email = email,
+                password = password,
+                request = request
+            )
+            if not user:
+                raise serializers.ValidationError("wrong credentials")
+        else:
+            raise serializers.ValidationError("Email and password are required!")
+        data['user'] = user
+        return data
+
+class ChangePassword(serializers.Serializer):
+    old_password = serializers.CharField(min_length=6, required=True)
+    new_password = serializers.CharField(min_length=6, required=True)
+    new_password_confirm = serializers.CharField(min_length=6, required=True)
+
+    def validate_old_password(self, old_password):
+        request = self.context.get('request')
+        user = request.user
+        if not user.check_password(old_password):
+            raise serializers.ValidationError("Enter valid password!")
+        return old_password
+
+    def validate(self, attrs):
+        new_pass1 = attrs.get('new_password')
+        new_pass2 = attrs.get('new_password_confirm')
+        if new_pass1 != new_pass2:
+            raise serializers.ValidationError("Password didn't match!")
+        return attrs
+
+    def set_new_password(self):
+        new_pass = self.validated_data.get('new_password')
+        user = self.context.get('request').user
+        user.set_password(new_pass)
+        user.save()
+        
